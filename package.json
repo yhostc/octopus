@@ -1,0 +1,29 @@
+{
+  "name": "octopus",
+  "version": "0.0.1",
+  "description": "spider",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@git.wecook.cn:yhostc/octopus.git"
+  },
+  "keywords": [
+    "spider",
+    "node"
+  ],
+  "author": "yhostc@gmail.com",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "jsdom": "~0.10.4",
+    "jschardet": "~1.1.0",
+    "iconv-lite": "~0.2.11",
+    "redis": "~0.10.1",
+    "hiredis": "~0.1.16"
+  }
+}
