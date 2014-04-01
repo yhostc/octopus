@@ -24,6 +24,8 @@
     "jschardet": "~1.1.0",
     "iconv-lite": "~0.2.11",
     "redis": "~0.10.1",
-    "hiredis": "~0.1.16"
+    "hiredis": "~0.1.16",
+    "generic-pool": "~2.0.4",
+    "mongoose": "~3.8.8"
   }
 }
