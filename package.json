@@ -1,7 +1,7 @@
 {
   "name": "octopus",
   "version": "0.0.1",
-  "description": "spider",
+  "description": "An website spider framework for nodejs, directional depth crawling.",
   "main": "index.js",
   "directories": {
     "test": "test"
@@ -18,7 +18,7 @@
     "node"
   ],
   "author": "yhostc@gmail.com",
-  "license": "BSD-2-Clause",
+  "license": "GPL v2",
   "dependencies": {
     "jsdom": "~0.10.4",
     "jschardet": "~1.1.0",
