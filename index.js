@@ -17,6 +17,8 @@ function octopus(task) {
 	this._task = task;
 	// queue
 	this._queue = [];
+	// queue batch number
+	this._queue_batch = 0;
 	// cache
 	this._cache = {};
 
@@ -41,9 +43,11 @@ util.inherits(octopus, events.EventEmitter);
 octopus.prototype._options = function (task) {
 	// Default Options
 	this.options = {
+		cache: false,
 		timeout: 60000,
 		maxRedirects: 2,
-		cache: false,
+		maxConnections: 3,
+		scripts: ['http://code.jquery.com/jquery.js'],
 		userAgent: packages.name + '/' + packages.version
 	};
 	var sources = task.options;
@@ -89,7 +93,7 @@ octopus.prototype.queue = function (urls) {
 			that._queue.push(url);
 		});
 	} else if (typeof urls === 'string') { // insert one 
-		that._queue.push(url);
+		that._queue.push(urls);
 	} else {
 		console.error('invalid queue task.');
 	}
@@ -103,39 +107,47 @@ octopus.prototype.queue = function (urls) {
  * @return {[type]} [description]
  */
 octopus.prototype._request = function () {
-	var that = this;
-	var one = this._queue.pop();
-
 	// check complete
-	if (!one) {
-		this.emit('complete', 'All is Ok!')
+	if (this._queue.length <= 0 || this._queue_batch > this.options['maxConnections']) {
 		return;
 	}
+
+	var that = this;
+	var url = this._queue.pop();
+
 	// check cache
-	if (this._cache[one.url]) {
-		this._jsdom(one.url, this._cache[one.url]);
+	if (this._cache[url]) {
+		this._jsdom(url, this._cache[url]);
+		return;
 	}
 
+	// count number
+	this._queue_batch++;
+	this.emit('fetch', url);
 
 	// request an url
 	request({
-		url: one.url,
+		url: url,
 		timeout: this.options['timeout'],
 		headers: {
 			'User-Agent': this.options['userAgent']
-		}
+		},
 		maxRedirects: this.options['maxRedirects']
 	}, function (errors, response, body) {
+		that._queue_batch--;
+		console.log(that._queue_batch, that._queue.length);
+
 		// error handing
 		if (errors) {
 			that.emit('faild', errors);
+			that._request();
 			return;
 		}
 		// cache
-		that._cache[one.url] = body;
+		that._cache[url] = body;
 
 		// complete, jsdom
-		that.jsdom(one.url, body);
+		that._jsdom(url, body);
 	});
 
 };
@@ -152,10 +164,9 @@ octopus.prototype._jsdom = function (url, body) {
 				window.url = url;
 				that._fetch(errors, window);
 			}
-			// 
+			// error handling
 			if (errors) {
 				that.emit('faild', errors);
-				that._errors(errors, url);
 			}
 		}
 	};
@@ -163,8 +174,11 @@ octopus.prototype._jsdom = function (url, body) {
 	jsdom.env(config);
 
 	// for next
-	if (this._queue.length > 0) {
-		this._request();
+	this._request();
+
+	// for complete
+	if (this._queue_batch <= 0) {
+		this.emit('complete', 'All is ok!')
 	}
 };
 
@@ -176,11 +190,17 @@ octopus.prototype._fetch = function (errors, window) {
 	callback(errors, window);
 
 	// result for route callback
-	this._routes.forEach(function (route) {
-		if (window.url.match(route.regex)) {
-			route.callback(window);
-		}
-	});
+	if (window.$) {
+		this._routes.forEach(function (route) {
+			if (window.url.match(route.regex)) {
+				route.callback(window);
+			}
+		});
+	} else {
+		console.log('jquery is not loaded!');
+		console.log(window);
+	}
+
 };
 
 

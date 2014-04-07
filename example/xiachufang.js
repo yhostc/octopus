@@ -3,10 +3,12 @@ var claw = require('../').Claw;
 var idx = 0;
 var xiachufang = new claw({
 	options: {
-		// 唯一标识符
-		id: 'xiachufang',
 		cache: true,
-		skipDuplicates: true,
+		redis: {
+			host: "127.0.0.1",
+			port: 6379
+		},
+		maxConnections: 10,
 		scripts: ['http://code.jquery.com/jquery.js'],
 		userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36',
 		callback: function (error, window) {
@@ -15,9 +17,9 @@ var xiachufang = new claw({
 			//console.log(arguments);
 		}
 	},
-
+	// queue url
 	queue: ['http://www.xiachufang.com/category/'],
-
+	// route regex
 	route: [{
 		// 首页分类
 		regex: /\/category\/$/,
@@ -42,14 +44,15 @@ var xiachufang = new claw({
 	}]
 });
 
+// loging
 var fet = 0;
 xiachufang.on('fetch', function (url) {
 	console.log('fetch:', url, ', fet:', (fet++));
 });
 
 var err = 0;
-xiachufang.on('faild', function (status, info) {
-	console.log('status:', status, ', info:', info, ', err:', (err++));
+xiachufang.on('faild', function (errors) {
+	console.log('errors:', errors, ', err:', (err++));
 });
 
 var war = 0;
