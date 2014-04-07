@@ -7,22 +7,18 @@ var octopus = require('../');
  * @return {Object}
  */
 var xiachufang = function (oct) {
-	var options = {
+
+	// 指定配置
+	this.options = {
 		// 唯一标识符
 		id: 'xiachufang',
-		// 基本入口地址
-		baseUrl: 'http://www.xiachufang.com/',
-		// 是否跳过重复
-		skipDuplicates: true
-	}
-
-	// 加载模块配置
-	oct.load(this, options);
-
-	return this;
+		// 入口地址
+		baseUrl: 'http://www.xiachufang.com/'
+	};
 }
 
 xiachufang.prototype = {
+
 	/**
 	 * 定义路由
 	 * @param  {Object}   req
@@ -30,8 +26,9 @@ xiachufang.prototype = {
 	 * @return {Object}
 	 */
 	route: function (app) {
+		//app.get(/(.*)/g, this.index);
 		// 定义路由
-		app.get('/category', this.category);
+		app.get(/\/category\/\d+/, this.category, this);
 	},
 
 	/**
@@ -41,8 +38,7 @@ xiachufang.prototype = {
 	 * @return {[type]}
 	 */
 	category: function (req, next) {
-
-
+		console.log(arguments);
 	}
 }
 

@@ -1,94 +1,101 @@
+/**
+ * 本模块负责模块管理、监控工作
+ * @type {[type]}
+ */
 var fs = require('fs'),
 	util = require('util'),
 	events = require('events'),
-	jsdom = require('jsdom'),
-	pack = require('package.json'),
-	request = require('request');
+	packages = require('./package.json');
+
+var poolModule = require('generic-pool');
+
 
 /**
  * An website spider framework for nodejs, directional depth crawling
  * @param  {[Object]} opts
  * @return {[type]}
  */
-var octopus = function (opts) {
+function octopus() {
+	events.EventEmitter.call(this);
+	// 资源管理器
+	var pool = poolModule.Pool({
+		name: packages.name,
+		create: function (callback) {
+			// do something
+			callback(1);
+		},
+		destroy: function (client) {
+			// cleanup.  omitted for this example
+		},
+		max: 10,
+		idleTimeoutMillis: 30000,
+		priorityRange: 3
+	});
 
-	// Default Options
-	var options = {
-		timeout: 60000,
-		jQuery: true,
-		maxConnections: 10,
-		priorityRange: 10,
-		priority: 5,
-		retries: 3,
-		forceUTF8: false,
-		userAgent: packe.name + '/' + pack.version,
-		autoWindowClose: true,
-		retryTimeout: 10000,
-		method: "GET",
-		cache: false, //false,true, [ttl?]
-		skipDuplicates: false,
-		onDrain: false
-	};
+	this._pool = pool;
+};
+util.inherits(octopus, events.EventEmitter);
 
+
+/**
+ * 加载模块
+ * @param  {Object} defaultOptions  默认参数
+ * @return {[type]}         [description]
+ */
+octopus.prototype.loads = function (defaultOptions) {
 	// 实例
-	this._instances = [];
-	// 路由
-	this._routes = [];
+	this._instances = {};
 	// 队列
 	this._queue = [];
+	// index
+	this._idx = 0;
 
-
-	events.EventEmitter.call(this);
-};
-
-
-octopus.prototype.loads = function (module, options) {
-	// 缓存实例
-	this._instances.push({
-		module: module,
-		options: options
-	});
-	// 初始化爬行此模块
-	this.request(options.baseUrl);
-};
-
-/**
- * 路由加载处理模块
- * @public
- * @param  {[type]}   regex
- * @param  {Function} callback
- * @return {[type]}
- */
-octopus.prototype.get = function (regex, callback) {
-	// 缓存路由规则
-	this._routes.push({
-		regex: regex,
-		callback: callback
-	});
-}
-
-/**
- * 增加爬行轨迹
- * @param  {[type]} link 连接
- * @return {[type]}
- */
-octopus.prototype.queue = function (link) {
-
-	// body...
-};
-
-octopus.prototype.request = function (first_argument) {
+	// check modules
+	var path = './modules';
+	if (!fs.existsSync(path)) {
+		throw ('examples path is not founded!');
+	}
+	// load modules
 	var that = this;
-	request('http://www.google.com', function (error, response, body) {
-		if (!error && response.statusCode == 200) {
-			console.log(body) // Print the google web page.
-			// 遍历路由，执行对应回调
-			that._routes.forEach(route, idx) {
-
-			}
+	var files = fs.readdirSync(path);
+	files.forEach(function (file) {
+		var m = require(path + '/' + file);
+		if (!m.options) {
+			throw ('the moudle ' + file + ' is not found options');
 		}
-	})
+		if (!m.route) {
+			throw ('the moudle ' + file + ' is not found route function');
+		}
+
+		// mix options
+		var opts = extend(defaultOptions, m.options);
+
+		// route
+		// cache instances
+		if (this._instances[opts.id]) {
+			// have loaded this module;
+			return;
+		}
+		this._instances[opts.id] = m;
+
+	});
+
+	// initialization for request
+	//this.request(this.request.apply(this, this._routes[0]));
 };
 
+// Default Options
+var defaultOptions = {
+	method: "GET",
+	timeout: 60000,
+	jQuery: true,
+	retries: 3,
+	autoWindowClose: true,
+	retryTimeout: 10000,
+	cache: false, //false,true, [ttl?]
+	skipDuplicates: false,
+	userAgent: packages.name + '/' + packages.version
+};
 
-util.inherits(octopus, events.EventEmitter);
+var octs = new octopus();
+octs.loads(defaultOptions);
