@@ -17,3 +17,15 @@ an website spider framework for nodejs, directional depth crawling
 2、模块管理（管理和处理请求队列，需维护请求间隔时间）
 参数：idel
 3、任务处理模块（负责任务执行）
+
+-----------------------------------------------------------------------
+### monitoring
+monitor projects：
+1、节点node监控
+2、任务task监控
+3、进度queue监控
+
+monitor export：
++ terminal
++ api
++ local web page

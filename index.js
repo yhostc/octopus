@@ -1,13 +1,8 @@
-/**
- * 本模块负责模块管理、监控工作
- * @type {[type]}
- */
-var fs = require('fs'),
-	util = require('util'),
+var util = require('util'),
 	events = require('events'),
 	packages = require('./package.json');
-
-var poolModule = require('generic-pool');
+var request = require('request');
+var jsdom = require("jsdom");
 
 
 /**
@@ -15,87 +10,178 @@ var poolModule = require('generic-pool');
  * @param  {[Object]} opts
  * @return {[type]}
  */
-function octopus() {
+function octopus(task) {
 	events.EventEmitter.call(this);
-	// 资源管理器
-	var pool = poolModule.Pool({
-		name: packages.name,
-		create: function (callback) {
-			// do something
-			callback(1);
-		},
-		destroy: function (client) {
-			// cleanup.  omitted for this example
-		},
-		max: 10,
-		idleTimeoutMillis: 30000,
-		priorityRange: 3
+
+	// instances
+	this._task = task;
+	// queue
+	this._queue = [];
+	// cache
+	this._cache = {};
+
+	// mix options
+	this._options(task);
+
+	// save routes
+	this.route(task.route);
+
+	// start request
+	var that = this;
+	this.on('queue', function () {
+		that._request();
 	});
 
-	this._pool = pool;
+	// save queue
+	task.queue && this.queue(task.queue);
 };
 util.inherits(octopus, events.EventEmitter);
 
 
-/**
- * 加载模块
- * @param  {Object} defaultOptions  默认参数
- * @return {[type]}         [description]
- */
-octopus.prototype.loads = function (defaultOptions) {
-	// 实例
-	this._instances = {};
-	// 队列
-	this._queue = [];
-	// index
-	this._idx = 0;
+octopus.prototype._options = function (task) {
+	// Default Options
+	this.options = {
+		timeout: 60000,
+		maxRedirects: 2,
+		cache: false,
+		userAgent: packages.name + '/' + packages.version
+	};
+	var sources = task.options;
 
-	// check modules
-	var path = './modules';
-	if (!fs.existsSync(path)) {
-		throw ('examples path is not founded!');
+	// mix options
+	src = task.options || {};
+	for (i in src) {
+		this.options[i] = src[i];
 	}
-	// load modules
+};
+
+/**
+ * 路由模块
+ * @public
+ * @param  {[type]}   regex
+ * @param  {Function} callback
+ * @return {[type]}
+ */
+octopus.prototype.route = function (one) {
+	if (one instanceof Array) {
+		this._routes = one;
+	} else if (arguments.length === 2) {
+		this._routes = [{
+			regex: one,
+			callback: arguments[1]
+		}];
+	} else {
+		console.error('invalid route.');
+	}
+	return this._routes;
+}
+
+/**
+ * 增加爬行轨迹
+ * @public
+ * @param  {[type]} link 连接
+ * @return {[type]}
+ */
+octopus.prototype.queue = function (urls) {
 	var that = this;
-	var files = fs.readdirSync(path);
-	files.forEach(function (file) {
-		var m = require(path + '/' + file);
-		if (!m.options) {
-			throw ('the moudle ' + file + ' is not found options');
-		}
-		if (!m.route) {
-			throw ('the moudle ' + file + ' is not found route function');
-		}
+	if (urls instanceof Array) {
+		urls.forEach(function (url) { // insert an batch
+			that._queue.push(url);
+		});
+	} else if (typeof urls === 'string') { // insert one 
+		that._queue.push(url);
+	} else {
+		console.error('invalid queue task.');
+	}
+	this.emit('queue');
+	return this._queue;
+};
 
-		// mix options
-		var opts = extend(defaultOptions, m.options);
 
-		// route
-		// cache instances
-		if (this._instances[opts.id]) {
-			// have loaded this module;
+/**
+ * 请求一个URL
+ * @return {[type]} [description]
+ */
+octopus.prototype._request = function () {
+	var that = this;
+	var one = this._queue.pop();
+
+	// check complete
+	if (!one) {
+		this.emit('complete', 'All is Ok!')
+		return;
+	}
+	// check cache
+	if (this._cache[one.url]) {
+		this._jsdom(one.url, this._cache[one.url]);
+	}
+
+
+	// request an url
+	request({
+		url: one.url,
+		timeout: this.options['timeout'],
+		headers: {
+			'User-Agent': this.options['userAgent']
+		}
+		maxRedirects: this.options['maxRedirects']
+	}, function (errors, response, body) {
+		// error handing
+		if (errors) {
+			that.emit('faild', errors);
 			return;
 		}
-		this._instances[opts.id] = m;
+		// cache
+		that._cache[one.url] = body;
 
+		// complete, jsdom
+		that.jsdom(one.url, body);
 	});
 
-	// initialization for request
-	//this.request(this.request.apply(this, this._routes[0]));
 };
 
-// Default Options
-var defaultOptions = {
-	method: "GET",
-	timeout: 60000,
-	jQuery: true,
-	retries: 3,
-	autoWindowClose: true,
-	retryTimeout: 10000,
-	cache: false, //false,true, [ttl?]
-	skipDuplicates: false,
-	userAgent: packages.name + '/' + packages.version
+octopus.prototype._jsdom = function (url, body) {
+	// complete, jsdom
+	var that = this;
+	var config = {
+		html: body,
+		scripts: this.options['scripts'],
+		done: function (errors, window) {
+			// for callback
+			if (window) {
+				window.url = url;
+				that._fetch(errors, window);
+			}
+			// 
+			if (errors) {
+				that.emit('faild', errors);
+				that._errors(errors, url);
+			}
+		}
+	};
+
+	jsdom.env(config);
+
+	// for next
+	if (this._queue.length > 0) {
+		this._request();
+	}
 };
 
-var octs = new octopus();
-octs.loads(defaultOptions);
+
+octopus.prototype._fetch = function (errors, window) {
+	var callback = this._options['callback'] || function () {};
+
+	// result for global callback
+	callback(errors, window);
+
+	// result for route callback
+	this._routes.forEach(function (route) {
+		if (window.url.match(route.regex)) {
+			route.callback(window);
+		}
+	});
+};
+
+
+exports.Claw = octopus;
