@@ -11,11 +11,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@git.wecook.cn:yhostc/octopus.git"
+    "url": "git@github.com:yhostc/octopus.git"
   },
   "keywords": [
     "spider",
-    "node"
+    "nodejs",
+    "crawling"
   ],
   "author": "yhostc@gmail.com",
   "license": "GPL v2",
@@ -25,9 +26,6 @@
     "iconv-lite": "~0.2.11",
     "redis": "~0.10.1",
     "hiredis": "~0.1.16",
-    "generic-pool": "~2.0.4",
-    "mongoose": "~3.8.8",
-    "request": "~2.34.0",
-    "extend": "^1.2.1"
+    "request": "~2.34.0"
   }
 }
