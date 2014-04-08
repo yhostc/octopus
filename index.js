@@ -1,11 +1,8 @@
-var fs = require('fs'),
-	util = require('util'),
+var util = require('util'),
 	events = require('events'),
-	packages = require('./package.json');
-var request = require('request');
-var jsdom = require("jsdom");
-
-
+	jsdom = require("jsdom"),
+	redis = require('./lib/redis.js'),
+	http = require('./lib/http.js');
 
 /**
  * An website spider framework for nodejs, directional depth crawling
@@ -14,207 +11,158 @@ var jsdom = require("jsdom");
  */
 function octopus(task) {
 	events.EventEmitter.call(this);
-
-	// instances
+	// task
 	this._task = task;
-	// queue
-	this._queue = [];
-	// queue batch number
-	this._queue_batch = 0;
-	// cache
-	this._cache = {};
-
-	// mix options
-	this._options(task);
-
-	// save routes
-	this.route(task.route);
-
-	// start request
-	var that = this;
-	this.on('queue', function () {
-		that._request();
-	});
-
-	// save queue
-	task.queue && this.queue(task.queue);
+	// queue batch index and err number
+	this._queue_err = 0;
+	this._queue_loading = 0;
+	// initialization
+	this.initialization(task);
 };
 util.inherits(octopus, events.EventEmitter);
 
-/**
- * merge detault options
- * @param  {[type]} task [description]
- * @return {[type]}      [description]
- */
-octopus.prototype._options = function (task) {
-	// Default Options
-	this.options = {
-		debug: false,
-		cache: false,
-		timeout: 60000,
-		maxRedirects: 10,
-		maxConnections: 10,
-		scripts: [],
-		userAgent: packages.name + '/' + packages.version
-	};
-	var sources = task.options;
 
-	// mix options
-	src = task.options || {};
-	for (i in src) {
-		this.options[i] = src[i];
+octopus.prototype.initialization = function (task) {
+	// init http
+	this._http = new http.Request();
+	// merge detault options
+	this.options = this._http.options(task.options || {});
+	if (this.options['redis']) {
+		this._redis = new redis.Storage();
 	}
+	// start request
+	this.on('queue', this.next);
+	// save queue
+	task.queue && this.queue(task.queue);
 };
 
 /**
- * 路由模块
+ * add an queue
  * @public
- * @param  {[type]}   regex
- * @param  {Function} callback
- * @return {[type]}
- */
-octopus.prototype.route = function (one) {
-	if (one instanceof Array) {
-		this._routes = one;
-	} else if (arguments.length === 2) {
-		this._routes = [{
-			regex: one,
-			callback: arguments[1]
-		}];
-	} else {
-		console.error('invalid route.');
-	}
-	return this._routes;
-}
-
-/**
- * 增加爬行轨迹
- * @public
- * @param  {[type]} link 连接
+ * @param  {String|Array} urls
  * @return {[type]}
  */
 octopus.prototype.queue = function (urls) {
-	var that = this;
-	if (urls instanceof Array) {
-		urls.forEach(function (url) { // insert an batch
-			that._queue.push(url);
-		});
-	} else if (typeof urls === 'string') { // insert one 
-		that._queue.push(urls);
-	} else {
-		console.error('invalid queue task.');
+	if (typeof urls === 'string') {
+		urls = [urls];
 	}
-	this.emit('queue');
-	return this._queue;
+	if (urls instanceof Array) {
+		var that = this;
+		urls.forEach(function (url) {
+			that._redis.pushQueue(url);
+			that.emit('queue', url);
+		});
+	}
+};
+
+/**
+ * Next Queue
+ * @return {Function} [description]
+ */
+octopus.prototype.next = function (url) {
+	var that = this;
+	var c = this._redis;
+
+	// check connection batch numbers
+	if (this._queue_loading >= this.options['maxConnections']) {
+		return;
+	}
+
+	this._queue_loading++;
+
+	// get one Queue
+	c.popQueue(function (err, url) {
+		if (url) { // check cache exists
+			c.hgetCache(url, function (err2, body) {
+				if (body) {
+					// parse html dom, from cache
+					that._jsdom(url, body);
+				} else {
+					// send an request
+					that._sending(url);
+				}
+			});
+		} else if (!that._queue_loading) { // next
+			that.emit('complete', 'All is ok!')
+		}
+	});
 };
 
 
-/**
- * 请求一个URL
- * @return {[type]} [description]
- */
-octopus.prototype._request = function () {
-	// check complete
-	if (this._queue.length <= 0 || this._queue_batch > this.options['maxConnections']) {
-		return;
-	}
-
+octopus.prototype._sending = function (url) {
 	var that = this;
-	var url = this._queue.pop();
+	var http = this._http;
 
-	// check cache
-	if (this._cache[url]) {
-		this._jsdom(url, this._cache[url]);
-		return;
-	}
-
-	// count number
+	// count & events
 	this._queue_batch++;
-	this.emit('fetch', url);
 
-	// request an url
-	this.options['debug'] && console.log('ready to send an url:', url);
-	request({
-		url: url,
-		method: 'GET',
-		timeout: this.options['timeout'],
-		headers: {
-			'User-Agent': this.options['userAgent']
-		},
-		maxRedirects: this.options['maxRedirects']
-	}, function (errors, response, body) {
-		that.options['debug'] && console.log('get an request:', url, ', statusCode:', response.statusCode);
-		that.options['debug'] && console.log(errors);
+
+	// send an request
+	http.request(url, function (errors, response, body) {
 		// error handing
 		if (errors) {
-			that._queue_batch--;
-			that.emit('faild', errors);
-			that._request();
+			that._errors(errors);
 			return;
 		}
-		// cache
-		that._cache[url] = body;
-
 		// complete, jsdom
 		that._jsdom(url, body);
 	});
-
 };
 
+
 octopus.prototype._jsdom = function (url, body) {
-	this.options['debug'] && console.log('ready to parse body');
 	// complete, jsdom
 	var that = this;
 	var config = {
 		html: body,
 		scripts: this.options['scripts'],
 		done: function (errors, window) {
-			that.options['debug'] && console.log('get an parse window domtree');
-			// for callback
+			that.emit('fetch', url);
 			if (window) {
 				window.url = url;
+				that.emit('queue');
 				that._fetch(errors, window, body);
+			} else {
+				that._errors(errors);
 			}
-			// error handling
-			if (errors) {
-				that.emit('faild', errors);
-			}
-			//window.close();
 		}
 	};
-
 	jsdom.env(config);
 };
-
-
+// cache
+// this._cache.hset(one.url, 'body', body);
 octopus.prototype._fetch = function (errors, window, body) {
-	this.options['debug'] && console.log('ready to fetch result')
-
-	var callback = this._options['callback'] || function () {};
-
+	var callback = this._task.options['callback'] || function () {};
 	// result for global callback
 	callback(errors, window);
 
-	// result for route callback
-	if (window.$) {
-		this._routes.forEach(function (route) {
+	if (!errors) {
+		// foreach routes
+		this._task.route.forEach(function (route) {
 			if (window.url.match(route.regex)) {
 				route.callback(window);
 			}
 		});
-	} else {
-		this.options['debug'] && console.log('jquery is not loaded!');
 	}
-	this.options['debug'] && console.log('End of the request');
 
-	// for next
-	this._request();
+	this._queue_loading--;
 
 	// for complete
-	if (this._queue_batch <= 0 && this._queue.length <= 0) {
-		this.emit('complete', 'All is ok!')
-	}
-	this._queue_batch--;
-	this.options['debug'] && console.log(this._queue_batch, this._queue.length);
+	var that = this;
+	this._redis.lenQueue(function (err, len) {
+		// for next
+		if (that._queue_loading <= 0 && len <= 0) {
+			that.emit('->complete', 'All is ok!')
+		}
+		that.options['debug'] && console.log('total:', len, ', loading:', that._queue_loading);
+	});
 };
+
+octopus.prototype._errors = function (errors) {
+	this._queue_loading--;
+	this.emit('faild', errors);
+	this.emit('queue');
+};
+
+
 exports.Claw = octopus;
