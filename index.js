@@ -6,8 +6,7 @@ var util = require('util'),
 
 /**
  * An website spider framework for nodejs, directional depth crawling
- * @param  {[Object]} opts
- * @return {[type]}
+ * @param  {Object} opts
  */
 function octopus(task) {
 	events.EventEmitter.call(this);
@@ -28,7 +27,7 @@ octopus.prototype.initialization = function (task) {
 	// merge detault options
 	this.options = this._http.options(task.options || {});
 	if (this.options['redis']) {
-		this._redis = new redis.Storage();
+		this._redis = new redis.Storage(this.options['redis']);
 	}
 	// start request
 	this.on('queue', this.next);
@@ -62,14 +61,12 @@ octopus.prototype.queue = function (urls) {
 octopus.prototype.next = function (url) {
 	var that = this;
 	var c = this._redis;
-
 	// check connection batch numbers
 	if (this._queue_loading >= this.options['maxConnections']) {
 		return;
 	}
-
-	this._queue_loading++;
-
+	// count
+	that._queue_loading++;
 	// get one Queue
 	c.popQueue(function (err, url) {
 		if (url) { // check cache exists
@@ -82,34 +79,42 @@ octopus.prototype.next = function (url) {
 					that._sending(url);
 				}
 			});
-		} else if (!that._queue_loading) { // next
-			that.emit('complete', 'All is ok!')
+		} else {
+			that._queue_loading--;
 		}
 	});
 };
 
-
+/**
+ * sending an request
+ * @param  {String} url
+ * @return {[type]}
+ */
 octopus.prototype._sending = function (url) {
 	var that = this;
 	var http = this._http;
-
-	// count & events
-	this._queue_batch++;
-
 
 	// send an request
 	http.request(url, function (errors, response, body) {
 		// error handing
 		if (errors) {
-			that._errors(errors);
-			return;
+			that._queue_loading--;
+			that.emit('errors', errors);
+			that.queue(url);
+			that.next();
+		} else {
+			// complete, jsdom
+			that._jsdom(url, body);
 		}
-		// complete, jsdom
-		that._jsdom(url, body);
 	});
 };
 
-
+/**
+ * parse html dom
+ * @param  {[type]} url
+ * @param  {[type]} body
+ * @return {[type]}
+ */
 octopus.prototype._jsdom = function (url, body) {
 	// complete, jsdom
 	var that = this;
@@ -117,52 +122,41 @@ octopus.prototype._jsdom = function (url, body) {
 		html: body,
 		scripts: this.options['scripts'],
 		done: function (errors, window) {
-			that.emit('fetch', url);
-			if (window) {
-				window.url = url;
-				that.emit('queue');
-				that._fetch(errors, window, body);
+			that._queue_loading--;
+			if (errors && !window) {
+				that.emit('errors', errors);
+				that.queue(url);
+				that.next();
 			} else {
-				that._errors(errors);
+				window.url = url;
+				// for global callback
+				(that._task.options['callback'] || function () {})(errors, window);
+				// for route callback
+				that._task.route.forEach(function (route) {
+					if (window.url.match(route.regex)) {
+						route.callback(window);
+					}
+				});
+				// end of
+				that._redis.lenQueue(function (err, len) {
+					err && that.emit('errors', err);
+					// for next
+					if (that._queue_loading <= 0 && len <= 0) {
+						that.emit('complete', 'All is ok!')
+					}
+					that.emit('fetch', {
+						url: url,
+						remain: len,
+						loading: that._queue_loading
+					});
+					that.next();
+				});
 			}
 		}
 	};
 	jsdom.env(config);
+	// for next request
+	this.next();
 };
-// cache
-// this._cache.hset(one.url, 'body', body);
-octopus.prototype._fetch = function (errors, window, body) {
-	var callback = this._task.options['callback'] || function () {};
-	// result for global callback
-	callback(errors, window);
-
-	if (!errors) {
-		// foreach routes
-		this._task.route.forEach(function (route) {
-			if (window.url.match(route.regex)) {
-				route.callback(window);
-			}
-		});
-	}
-
-	this._queue_loading--;
-
-	// for complete
-	var that = this;
-	this._redis.lenQueue(function (err, len) {
-		// for next
-		if (that._queue_loading <= 0 && len <= 0) {
-			that.emit('->complete', 'All is ok!')
-		}
-		that.options['debug'] && console.log('total:', len, ', loading:', that._queue_loading);
-	});
-};
-
-octopus.prototype._errors = function (errors) {
-	this._queue_loading--;
-	this.emit('faild', errors);
-	this.emit('queue');
-};
-
 
 exports.Claw = octopus;
