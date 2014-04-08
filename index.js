@@ -6,6 +6,7 @@ var request = require('request');
 var jsdom = require("jsdom");
 
 
+
 /**
  * An website spider framework for nodejs, directional depth crawling
  * @param  {[Object]} opts
@@ -40,15 +41,20 @@ function octopus(task) {
 };
 util.inherits(octopus, events.EventEmitter);
 
-
+/**
+ * merge detault options
+ * @param  {[type]} task [description]
+ * @return {[type]}      [description]
+ */
 octopus.prototype._options = function (task) {
 	// Default Options
 	this.options = {
+		debug: false,
 		cache: false,
 		timeout: 60000,
-		maxRedirects: 2,
-		maxConnections: 3,
-		scripts: ['http://code.jquery.com/jquery.js'],
+		maxRedirects: 10,
+		maxConnections: 10,
+		scripts: [],
 		userAgent: packages.name + '/' + packages.version
 	};
 	var sources = task.options;
@@ -127,14 +133,18 @@ octopus.prototype._request = function () {
 	this.emit('fetch', url);
 
 	// request an url
+	this.options['debug'] && console.log('ready to send an url:', url);
 	request({
 		url: url,
+		method: 'GET',
 		timeout: this.options['timeout'],
 		headers: {
 			'User-Agent': this.options['userAgent']
 		},
 		maxRedirects: this.options['maxRedirects']
 	}, function (errors, response, body) {
+		that.options['debug'] && console.log('get an request:', url, ', statusCode:', response.statusCode);
+		that.options['debug'] && console.log(errors);
 		// error handing
 		if (errors) {
 			that._queue_batch--;
@@ -152,12 +162,14 @@ octopus.prototype._request = function () {
 };
 
 octopus.prototype._jsdom = function (url, body) {
+	this.options['debug'] && console.log('ready to parse body');
 	// complete, jsdom
 	var that = this;
 	var config = {
 		html: body,
 		scripts: this.options['scripts'],
 		done: function (errors, window) {
+			that.options['debug'] && console.log('get an parse window domtree');
 			// for callback
 			if (window) {
 				window.url = url;
@@ -167,6 +179,7 @@ octopus.prototype._jsdom = function (url, body) {
 			if (errors) {
 				that.emit('faild', errors);
 			}
+			//window.close();
 		}
 	};
 
@@ -175,6 +188,8 @@ octopus.prototype._jsdom = function (url, body) {
 
 
 octopus.prototype._fetch = function (errors, window, body) {
+	this.options['debug'] && console.log('ready to fetch result')
+
 	var callback = this._options['callback'] || function () {};
 
 	// result for global callback
@@ -188,13 +203,9 @@ octopus.prototype._fetch = function (errors, window, body) {
 			}
 		});
 	} else {
-		console.log('jquery is not loaded!');
-		console.log(errors);
-		var filename = (window.url.match(/\/category\/(\d+)\/intro\//i))[1];
-		fs.writeFileSync(filename + '.html', body);
-		//console.log(body);
+		this.options['debug'] && console.log('jquery is not loaded!');
 	}
-
+	this.options['debug'] && console.log('End of the request');
 
 	// for next
 	this._request();
@@ -204,6 +215,6 @@ octopus.prototype._fetch = function (errors, window, body) {
 		this.emit('complete', 'All is ok!')
 	}
 	this._queue_batch--;
-	console.log(this._queue_batch, this._queue.length);
+	this.options['debug'] && console.log(this._queue_batch, this._queue.length);
 };
 exports.Claw = octopus;
