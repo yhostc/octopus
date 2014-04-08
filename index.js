@@ -1,4 +1,5 @@
-var util = require('util'),
+var fs = require('fs'),
+	util = require('util'),
 	events = require('events'),
 	packages = require('./package.json');
 var request = require('request');
@@ -134,11 +135,9 @@ octopus.prototype._request = function () {
 		},
 		maxRedirects: this.options['maxRedirects']
 	}, function (errors, response, body) {
-		that._queue_batch--;
-		console.log(that._queue_batch, that._queue.length);
-
 		// error handing
 		if (errors) {
+			that._queue_batch--;
 			that.emit('faild', errors);
 			that._request();
 			return;
@@ -162,7 +161,7 @@ octopus.prototype._jsdom = function (url, body) {
 			// for callback
 			if (window) {
 				window.url = url;
-				that._fetch(errors, window);
+				that._fetch(errors, window, body);
 			}
 			// error handling
 			if (errors) {
@@ -172,18 +171,10 @@ octopus.prototype._jsdom = function (url, body) {
 	};
 
 	jsdom.env(config);
-
-	// for next
-	this._request();
-
-	// for complete
-	if (this._queue_batch <= 0) {
-		this.emit('complete', 'All is ok!')
-	}
 };
 
 
-octopus.prototype._fetch = function (errors, window) {
+octopus.prototype._fetch = function (errors, window, body) {
 	var callback = this._options['callback'] || function () {};
 
 	// result for global callback
@@ -198,10 +189,21 @@ octopus.prototype._fetch = function (errors, window) {
 		});
 	} else {
 		console.log('jquery is not loaded!');
-		console.log(window);
+		console.log(errors);
+		var filename = (window.url.match(/\/category\/(\d+)\/intro\//i))[1];
+		fs.writeFileSync(filename + '.html', body);
+		//console.log(body);
 	}
 
+
+	// for next
+	this._request();
+
+	// for complete
+	if (this._queue_batch <= 0 && this._queue.length <= 0) {
+		this.emit('complete', 'All is ok!')
+	}
+	this._queue_batch--;
+	console.log(this._queue_batch, this._queue.length);
 };
-
-
 exports.Claw = octopus;
