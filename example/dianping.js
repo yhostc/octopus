@@ -43,7 +43,7 @@ var zhuna = new claw({
 		// 酒店详情页面
 		regex: /\/shop\/\d+$/,
 		callback: function (window) {
-			var text = window.$('.top_nav>h1').text().trim();;
+			var text = window.$('h1.shop-title').text().trim();;
 			if (text) {
 				console.log('-->', text, ', count:', idx);
 				idx++;
