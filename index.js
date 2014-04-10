@@ -48,6 +48,7 @@ octopus.prototype.queue = function (urls) {
 	if (urls instanceof Array) {
 		var that = this;
 		urls.forEach(function (url) {
+			// need to check an url have been exists in queue , or have complete ?
 			that._redis.pushQueue(url);
 			that.emit('queue', url);
 		});
@@ -106,6 +107,8 @@ octopus.prototype._sending = function (url) {
 			// complete, jsdom
 			that._jsdom(url, body);
 		}
+		response = null;
+		body = null;
 	});
 };
 
@@ -151,6 +154,8 @@ octopus.prototype._jsdom = function (url, body) {
 					});
 					that.next();
 				});
+				window.close();
+				window = null;
 			}
 		}
 	};
