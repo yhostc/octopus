@@ -3,7 +3,7 @@ var util = require('util'),
 	jsdom = require("jsdom"),
 	redis = require('./lib/redis.js'),
 	request = require('request'),
-	packages = require('package.json');
+	packages = require('./package.json');
 
 /**
  * An website spider framework for nodejs, directional depth crawling
@@ -129,7 +129,7 @@ octopus.prototype._sending = function (url) {
 		headers: {
 			'User-Agent': this.options['userAgent']
 		},
-		maxRedirects: this._options['maxRedirects']
+		maxRedirects: this.options['maxRedirects']
 	}, function (errors, response, body) {
 		that.options.debug && console.log('-> requested, err:', errors);
 		// error handing
@@ -197,13 +197,15 @@ octopus.prototype._jsdom = function (url, body) {
 					// for next
 					if (that._queue_loading <= 0 && len <= 0) {
 						that.emit('complete', 'All is ok!')
+					} else {
+						that.emit('fetch', {
+							url: url,
+							remain: len,
+							loading: that._queue_loading
+						});
+						that.next();
 					}
-					that.emit('fetch', {
-						url: url,
-						remain: len,
-						loading: that._queue_loading
-					});
-					that.next();
+
 				});
 			}
 		}
