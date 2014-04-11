@@ -2,7 +2,7 @@ var util = require('util'),
 	events = require('events'),
 	jsdom = require("jsdom"),
 	redis = require('./lib/redis.js'),
-	http = require('./lib/http.js');
+	request = require('request');
 
 /**
  * An website spider framework for nodejs, directional depth crawling
@@ -22,17 +22,33 @@ util.inherits(octopus, events.EventEmitter);
 
 
 octopus.prototype.initialization = function (task) {
-	// init http
-	this._http = new http.Request();
 	// merge detault options
-	this.options = this._http.options(task.options || {});
-	if (this.options['redis']) {
-		this._redis = new redis.Storage(this.options['redis']);
-	}
+	this.mergeOptions(task.options || {});
 	// start request
 	this.on('queue', this.next);
 	// save queue
 	task.queue && this.queue(task.queue);
+};
+
+http.prototype.mergeOptions = function (opts) {
+	// Default Options
+	var options = this.options = {
+		debug: true,
+		redis: true,
+		timeout: 60000,
+		scripts: [],
+		maxRedirects: 10,
+		maxConnections: 10,
+		userAgent: packages.name + '/' + packages.version
+	};
+	// Mix Options
+	for (i in opts) {
+		options[i] = opts[i];
+	}
+
+	if (options['redis']) {
+		this._redis = new redis.Storage(options['redis']);
+	}
 };
 
 /**
@@ -105,10 +121,15 @@ octopus.prototype.next = function () {
  */
 octopus.prototype._sending = function (url) {
 	var that = this;
-	var http = this._http;
 
-	// send an request
-	http.request(url, function (errors, response, body) {
+	request({
+		url: url,
+		timeout: this.options['timeout'],
+		headers: {
+			'User-Agent': this.options['userAgent']
+		},
+		maxRedirects: this._options['maxRedirects']
+	}, function (errors, response, body) {
 		that.options.debug && console.log('-> requested, err:', errors);
 		// error handing
 		if (errors) {
