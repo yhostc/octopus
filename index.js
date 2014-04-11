@@ -48,7 +48,6 @@ octopus.prototype.queue = function (urls) {
 	if (urls instanceof Array) {
 		var that = this;
 		urls.forEach(function (url) {
-			// need to check an url have been exists in queue , or have complete ?
 			that._redis.pushQueue(url);
 			that.emit('queue', url);
 		});
@@ -72,10 +71,7 @@ octopus.prototype.next = function (url) {
 	c.popQueue(function (err, url) {
 		if (url) { // check cache exists
 			c.hgetCache(url, function (err2, body) {
-				if (body) {
-					// parse html dom, from cache
-					that._jsdom(url, body);
-				} else {
+				if (!body) {
 					// send an request
 					that._sending(url);
 				}
@@ -104,11 +100,15 @@ octopus.prototype._sending = function (url) {
 			that.queue(url);
 			that.next();
 		} else {
+			// adding cache
+			that._redis.hsetCache(url, body, function () {
+				response = null;
+				body = null;
+			});
+
 			// complete, jsdom
 			that._jsdom(url, body);
 		}
-		response = null;
-		body = null;
 	});
 };
 
