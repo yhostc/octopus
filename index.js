@@ -58,25 +58,41 @@ octopus.prototype.queue = function (urls) {
  * Next Queue
  * @return {Function} [description]
  */
-octopus.prototype.next = function (url) {
+octopus.prototype.next = function () {
+	this.options.debug && console.log('-> nexting');
+
 	var that = this;
 	var c = this._redis;
 	// check connection batch numbers
-	if (this._queue_loading >= this.options['maxConnections']) {
+	if (this._queue_loading >= this.options.maxConnections) {
+		this.options.debug && console.log('-> next, rather than maxConnections, skip');
 		return;
 	}
+
 	// count
 	that._queue_loading++;
 	// get one Queue
 	c.popQueue(function (err, url) {
+		that.options.debug && console.log('-> get an queue, err:', err);
 		if (url) { // check cache exists
 			c.hgetCache(url, function (err2, body) {
+				that.options.debug && console.log('-> check cache for url, err:', err2);
+				// no cached, requesting
 				if (!body) {
+					that.options.debug && console.log('-> send an request, url:', url);
 					// send an request
 					that._sending(url);
+				} else {
+					// have cache, skip
+					that.options.debug && console.log('-> have cache, skip, url:', url);
+
+
+					that._queue_loading--;
+					that.next();
 				}
 			});
 		} else {
+			that.options.debug && console.log('-> no url queue, subtract queue');
 			that._queue_loading--;
 		}
 	});
@@ -93,14 +109,19 @@ octopus.prototype._sending = function (url) {
 
 	// send an request
 	http.request(url, function (errors, response, body) {
+		that.options.debug && console.log('-> requested, err:', errors);
 		// error handing
 		if (errors) {
+			that.options.debug && console.log('-> request error, url:', url);
+
 			that._queue_loading--;
 			that.emit('errors', errors);
 			that.queue(url);
 			that.next();
 		} else {
 			// adding cache
+			that.options.debug && console.log('-> adding cache, url:', url);
+
 			that._redis.hsetCache(url, body, function () {
 				response = null;
 				body = null;
@@ -125,12 +146,18 @@ octopus.prototype._jsdom = function (url, body) {
 		html: body,
 		scripts: this.options['scripts'],
 		done: function (errors, window) {
+
 			that._queue_loading--;
 			if (errors && !window) {
+				that.options.debug && console.log('-> jsdom the html, errors:', errors);
+
 				that.emit('errors', errors);
 				that.queue(url);
 				that.next();
 			} else {
+				that.options.debug && console.log('-> jsdom ok, url:', url);
+
+
 				window.url = url;
 				// for global callback
 				(that._task.options['callback'] || function () {})(errors, window);
@@ -142,6 +169,8 @@ octopus.prototype._jsdom = function (url, body) {
 				});
 				// end of
 				that._redis.lenQueue(function (err, len) {
+					that.options.debug && console.log('-> get len queue, errors:', err);
+
 					err && that.emit('errors', err);
 					// for next
 					if (that._queue_loading <= 0 && len <= 0) {
@@ -154,8 +183,6 @@ octopus.prototype._jsdom = function (url, body) {
 					});
 					that.next();
 				});
-				window.close();
-				window = null;
 			}
 		}
 	};
