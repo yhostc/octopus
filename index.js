@@ -205,7 +205,6 @@ octopus.prototype._jsdom = function (url, body) {
 						});
 						that.next();
 					}
-
 				});
 			}
 		}
