@@ -30,7 +30,7 @@ octopus.prototype.initialization = function (task) {
 	task.queue && this.queue(task.queue);
 };
 
-http.prototype.mergeOptions = function (opts) {
+octopus.prototype.mergeOptions = function (opts) {
 	// Default Options
 	var options = this.options = {
 		debug: true,
