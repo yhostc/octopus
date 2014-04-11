@@ -2,7 +2,8 @@ var util = require('util'),
 	events = require('events'),
 	jsdom = require("jsdom"),
 	redis = require('./lib/redis.js'),
-	request = require('request');
+	request = require('request'),
+	packages = require('package.json');
 
 /**
  * An website spider framework for nodejs, directional depth crawling
