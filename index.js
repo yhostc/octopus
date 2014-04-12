@@ -1,8 +1,8 @@
 var util = require('util'),
 	events = require('events'),
-	jsdom = require("jsdom"),
 	redis = require('./lib/redis.js'),
 	request = require('request'),
+	cheerio = require('cheerio'),
 	packages = require('./package.json');
 
 /**
@@ -34,11 +34,9 @@ octopus.prototype.initialization = function (task) {
 octopus.prototype.mergeOptions = function (opts) {
 	// Default Options
 	var options = this.options = {
-		debug: true,
+		debug: false,
 		redis: true,
 		timeout: 60000,
-		scripts: [],
-		maxRedirects: 10,
 		maxConnections: 10,
 		userAgent: packages.name + '/' + packages.version
 	};
@@ -103,7 +101,6 @@ octopus.prototype.next = function () {
 					// have cache, skip
 					that.options.debug && console.log('-> have cache, skip, url:', url);
 
-
 					that._queue_loading--;
 					that.next();
 				}
@@ -150,7 +147,7 @@ octopus.prototype._sending = function (url) {
 			});
 
 			// complete, jsdom
-			that._jsdom(url, body);
+			that._cheerio(url, body);
 		}
 	});
 };
@@ -161,8 +158,45 @@ octopus.prototype._sending = function (url) {
  * @param  {[type]} body
  * @return {[type]}
  */
-octopus.prototype._jsdom = function (url, body) {
-	// complete, jsdom
+octopus.prototype._cheerio = function (url, body) {
+	var $ = cheerio.load(body);
+	$.url = url;
+
+	this._queue_loading--;
+	this.options.debug && console.log('-> cheerio ok, url:', url);
+
+	// for global callback
+	(this._task.options['callback'] || function () {})($);
+
+	// for route callback
+	this._task.route.forEach(function (route) {
+		if (url.match(route.regex)) {
+			route.callback($);
+		}
+	});
+
+	// end of
+	var that = this;
+	this._redis.lenQueue(function (err, len) {
+		that.options.debug && console.log('-> get len queue, errors:', err);
+
+		err && that.emit('errors', err);
+		// for next
+		if (that._queue_loading <= 0 && len <= 0) {
+			that.emit('complete', 'All is ok!')
+		} else {
+			that.emit('fetch', {
+				url: url,
+				remain: len,
+				loading: that._queue_loading
+			});
+			that.next();
+		}
+	});
+
+
+
+	/*
 	var that = this;
 	var config = {
 		html: body,
@@ -171,13 +205,13 @@ octopus.prototype._jsdom = function (url, body) {
 
 			that._queue_loading--;
 			if (errors && !window) {
-				that.options.debug && console.log('-> jsdom the html, errors:', errors);
+				that.options.debug && console.log('-> cheerio the html, errors:', errors);
 
 				that.emit('errors', errors);
 				that.queue(url);
 				that.next();
 			} else {
-				that.options.debug && console.log('-> jsdom ok, url:', url);
+				that.options.debug && console.log('-> cheerio ok, url:', url);
 
 
 				window.url = url;
@@ -212,6 +246,7 @@ octopus.prototype._jsdom = function (url, body) {
 	jsdom.env(config);
 	// for next request
 	this.next();
+	*/
 };
 
 exports.Claw = octopus;

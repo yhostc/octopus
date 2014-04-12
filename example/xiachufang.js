@@ -9,11 +9,9 @@ var xiachufang = new claw({
 			port: 6379
 		},
 		maxConnections: 10,
-		scripts: ['http://libs.baidu.com/jquery/2.0.0/jquery.min.js'],
 		userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36',
-		callback: function (error, window) {
-			//var $ = window.$;
-			//console.log(window.url);
+		callback: function ($) {
+			//console.log($.url);
 			//console.log(arguments);
 		}
 	},
@@ -23,18 +21,16 @@ var xiachufang = new claw({
 	route: [{
 		// 首页分类
 		regex: /\/category\/$/,
-		callback: function (window) {
-			var $ = window.$;
+		callback: function ($) {
 			var queue = $('li[id^=cat]>a').each(function (idx, href) {
 				xiachufang.queue('http://www.xiachufang.com' + $(href).attr('href') + 'intro/');
 			});
-			//xiachufang.queue();
 		}
 	}, {
 		// 食材详情页
 		regex: /\/category\/\d+\/intro\/$/,
-		callback: function (window) {
-			var text = window.$('h1[class=page-title]').text();
+		callback: function ($) {
+			var text = $('h1[class=page-title]').text();
 			if (text) {
 				console.log('-->', text, ', count:', idx);
 				idx++;

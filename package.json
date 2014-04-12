@@ -21,11 +21,11 @@
   "author": "yhostc@gmail.com",
   "license": "GPL v2",
   "dependencies": {
-    "jsdom": "~0.10.4",
     "jschardet": "~1.1.0",
     "iconv-lite": "~0.2.11",
     "redis": "~0.10.1",
     "hiredis": "~0.1.16",
-    "request": "~2.34.0"
+    "request": "~2.34.0",
+    "cheerio": "~0.15.0"
   }
 }
