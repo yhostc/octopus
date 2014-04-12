@@ -16,6 +16,7 @@ function octopus(task) {
 	// queue batch index and err number
 	this._queue_err = 0;
 	this._queue_loading = 0;
+	this._request_last = 0;
 	// initialization
 	this.initialization(task);
 };
@@ -37,6 +38,7 @@ octopus.prototype.mergeOptions = function (opts) {
 		debug: false,
 		redis: true,
 		timeout: 60000,
+		idleTime: 3000,
 		maxConnections: 10,
 		userAgent: packages.name + '/' + packages.version
 	};
@@ -84,6 +86,16 @@ octopus.prototype.next = function () {
 		return;
 	}
 
+	// check idle time;
+	var time = +new Date();
+	if ((time - this._request_last) < this.options['idleTime']) {
+		setTimeout(function () {
+			that.next()
+		}, this.options['idleTime']);
+		return;
+	}
+	this._request_last = time;
+
 	// count
 	that._queue_loading++;
 	// get one Queue
@@ -122,22 +134,15 @@ octopus.prototype._sending = function (url) {
 
 	request({
 		url: url,
+		jar: true,
 		timeout: this.options['timeout'],
 		headers: {
 			'User-Agent': this.options['userAgent']
 		},
 		maxRedirects: this.options['maxRedirects']
 	}, function (errors, response, body) {
-		that.options.debug && console.log('-> requested, err:', errors);
-		// error handing
-		if (errors) {
-			that.options.debug && console.log('-> request error, url:', url);
-
-			that._queue_loading--;
-			that.emit('errors', errors);
-			that.queue(url);
-			that.next();
-		} else {
+		that.options.debug && console.log('-> requested, statusCode:', response.statusCode);
+		if (!errors && response.statusCode == 200) {
 			// adding cache
 			that.options.debug && console.log('-> adding cache, url:', url);
 
@@ -148,6 +153,16 @@ octopus.prototype._sending = function (url) {
 
 			// complete, jsdom
 			that._cheerio(url, body);
+		} else {
+			that.options.debug && console.log('-> request error, url:', url);
+
+			that._queue_loading--;
+			that.emit('errors', {
+				errors: errors,
+				statusCode: response.statusCode
+			});
+			that.queue(url);
+			that.next();
 		}
 	});
 };
