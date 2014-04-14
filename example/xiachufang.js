@@ -8,8 +8,8 @@ var xiachufang = new claw({
 			host: '127.0.0.1',
 			port: 6379
 		},
-		maxConnections: 10,
-		userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36',
+		idleTime: 500,
+		userAgent: 'Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
 		callback: function ($) {
 			//console.log($.url);
 			//console.log(arguments);
@@ -23,7 +23,10 @@ var xiachufang = new claw({
 		regex: /\/category\/$/,
 		callback: function ($) {
 			var queue = $('li[id^=cat]>a').each(function (idx, href) {
-				xiachufang.queue('http://www.xiachufang.com' + $(href).attr('href') + 'intro/');
+				var url = 'http://www.xiachufang.com' + $(href).attr('href') + 'intro/';
+
+				//console.log(url);
+				xiachufang.queue(url);
 			});
 		}
 	}, {
