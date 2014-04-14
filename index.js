@@ -54,7 +54,7 @@ octopus.prototype.mergeOptions = function (opts) {
 	}
 
 	if (options['redis']) {
-		this._redis = new redis.Storage(options['redis']);
+		this._redis = new redis.Storage(options['redis'], options['debug']);
 	}
 };
 
@@ -96,7 +96,7 @@ octopus.prototype.next = function () {
 	var time = +new Date();
 	if ((time - this._request_last) < this.options['idleTime']) {
 		setTimeout(function () {
-			that.next()
+			that.next();
 		}, this.options['idleTime']);
 		return;
 	}
