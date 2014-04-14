@@ -48,6 +48,7 @@ octopus.prototype.mergeOptions = function (opts) {
 		maxConnections: 10,
 		userAgent: packages.name + '/' + packages.version
 	};
+
 	// Mix Options
 	for (i in opts) {
 		options[i] = opts[i];
