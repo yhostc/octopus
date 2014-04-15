@@ -155,14 +155,14 @@ octopus.prototype._sending = function (url) {
 		// error handing
 		if (!err && res.statusCode == 200) {
 			// cookie
-			if (res.headers['set-cookie']) {
-				// 写cookie
-				var k = request.jar();
-				res.headers['set-cookie'].forEach(function (c, idx) {
-					k.setCookie(c, url);
-				});
-				that._last_cookie = k;
-			}
+			// if (res.headers['set-cookie']) {
+			// 	// 写cookie
+			// 	var k = request.jar();
+			// 	res.headers['set-cookie'].forEach(function (c, idx) {
+			// 		k.setCookie(c, url);
+			// 	});
+			// 	that._last_cookie = k;
+			// }
 
 			// adding cache
 			that.options.debug && console.log('-> adding cache, url:', url);
