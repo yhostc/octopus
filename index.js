@@ -180,7 +180,7 @@ octopus.prototype._sending = function (url) {
 			that._queue_loading--;
 			that.emit('errors', {
 				errors: err,
-				statusCode: res.statusCode
+				statusCode: (res && res.statusCode ? res.statusCode : 0)
 			});
 			that.queue(url);
 			that.next();
