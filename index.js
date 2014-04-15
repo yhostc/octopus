@@ -149,11 +149,11 @@ octopus.prototype._sending = function (url) {
 			'Accept': 'text/html,application/xhtml+xml,application/xml;'
 		}
 	}, function (err, res, body) {
-		// debug & console
-		that.options.debug && console.log('-> requested, statusCode:', res.statusCode);
-
 		// error handing
-		if (!err && res.statusCode == 200) {
+		if (!err && res && res.statusCode == 200) {
+			// debug & console
+			that.options.debug && console.log('-> requested, statusCode:', res.statusCode);
+
 			// cookie
 			// if (res.headers['set-cookie']) {
 			// 	// 写cookie
