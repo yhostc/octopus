@@ -1,4 +1,4 @@
-var url = require('url'),
+var url2 = require('url'),
 	util = require('util'),
 	events = require('events'),
 	queue = require('./lib/queue.js'),
@@ -97,7 +97,8 @@ octopus.prototype.next = function () {
 	// count
 	that._queue_loading++;
 	// get one Queue
-	this._redis.popQueue(function (err, url) {
+	var c = this_redis;
+	c.popQueue(function (err, url) {
 		that.debug('-> get an queue, err:', err);
 		if (url) { // check cache exists
 			c.hgetCache(url, function (err2, body) {
