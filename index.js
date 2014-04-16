@@ -75,8 +75,6 @@ octopus.prototype.queue = function (urls) {
  * @return {Function} [description]
  */
 octopus.prototype.next = function () {
-	this.debug('-> nexting');
-
 	var that = this;
 	// check connection batch numbers
 	if (this._queue_loading >= this.options.maxConnections) {
@@ -99,18 +97,16 @@ octopus.prototype.next = function () {
 	// get one Queue
 	var c = this._redis;
 	c.popQueue(function (err, url) {
-		that.debug('-> get an queue, err:', err);
 		if (url) { // check cache exists
 			c.hgetCache(url, function (err2, body) {
-				that.debug('-> check cache for url, err:', err2);
 				// no cached, requesting
 				if (!body) {
-					that.debug('-> send an request, url:', url);
+					that.debug('-> send an request, url:' + url);
 					// send an request
 					that._sending(url);
 				} else {
 					// have cache, skip
-					that.debug('-> have cache, skip, url:', url);
+					that.debug('-> have cache, skip, url:' + url);
 
 					that._queue_loading--;
 					that.next();
@@ -142,10 +138,7 @@ octopus.prototype._sending = function (url) {
 		}
 	}, function (err, res, body) {
 		// error handing
-		if (!err && res && res.statusCode && res.statusCode == 200) {
-			// debug & console
-			that.debug('-> requested, statusCode:', res.statusCode);
-
+		if (!err && res && res.statusCode == 200) {
 			// if (res.headers && res.headers['set-cookie']) {
 			// 	// write cookie
 			// 	var k = request.jar();
@@ -156,7 +149,7 @@ octopus.prototype._sending = function (url) {
 			// }
 
 			// adding cache
-			that.debug('-> adding cache, url:', url);
+			that.debug('-> adding cache, url:' + url);
 
 			that._redis.hsetCache(url, body, function () {
 				res = null;
@@ -166,7 +159,7 @@ octopus.prototype._sending = function (url) {
 			// complete, jsdom
 			that._cheerio(url, body);
 		} else {
-			that.debug('-> request error, url:', url);
+			that.debug('-> request error, url:' + url);
 
 			that._queue_loading--;
 			that.emit('errors', {
@@ -190,7 +183,6 @@ octopus.prototype._cheerio = function (url, body) {
 	$.url = url;
 
 	this._queue_loading--;
-	this.debug('-> cheerio ok, url:', url);
 
 	// for global callback
 	(this._task.options['callback'] || function () {})($);
@@ -205,8 +197,6 @@ octopus.prototype._cheerio = function (url, body) {
 	// end of
 	var that = this;
 	this._redis.lenQueue(function (err, len) {
-		that.debug('-> get len queue, errors:', err);
-
 		err && that.emit('errors', err);
 		// for next
 		if (that._queue_loading <= 0 && len <= 0) {
@@ -223,8 +213,8 @@ octopus.prototype._cheerio = function (url, body) {
 };
 
 
-octopus.prototype.debug = function () {
-	this.options.debug && console.log(arguments);
+octopus.prototype.debug = function (msg) {
+	this.options.debug && console.log(msg);
 };
 
 exports.Claw = octopus;
