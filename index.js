@@ -41,7 +41,7 @@ octopus.prototype.initialization = function (task) {
 octopus.prototype.mergeOptions = function (opts) {
 	// Default Options
 	var options = this.options = {
-		debug: false,
+		debug: true,
 		redis: true,
 		timeout: 60000,
 		idleTime: 1000,
@@ -70,11 +70,8 @@ octopus.prototype.queue = function (urls) {
 		urls = [urls];
 	}
 	if (urls instanceof Array) {
-		var that = this;
-		urls.forEach(function (url) {
-			that._redis.pushQueue(url);
-			that.emit('queue', url);
-		});
+		this._redis.pushQueue(urls);
+		this.emit('queue', urls);
 	}
 };
 

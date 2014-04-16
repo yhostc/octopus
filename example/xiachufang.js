@@ -22,12 +22,12 @@ var xiachufang = new claw({
 		// 首页分类
 		regex: /\/category\/$/,
 		callback: function ($) {
+			var links = [];
 			var queue = $('li[id^=cat]>a').each(function (idx, href) {
 				var url = 'http://www.xiachufang.com' + $(href).attr('href') + 'intro/';
-
-				//console.log(url);
-				xiachufang.queue(url);
+				links.push(url);
 			});
+			xiachufang.queue(links);
 		}
 	}, {
 		// 食材详情页
