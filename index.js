@@ -41,7 +41,7 @@ octopus.prototype.initialization = function (task) {
 octopus.prototype.mergeOptions = function (opts) {
 	// Default Options
 	var options = this.options = {
-		debug: true,
+		debug: false,
 		redis: true,
 		timeout: 60000,
 		idleTime: 500,
@@ -97,7 +97,7 @@ octopus.prototype.next = function () {
 	// count
 	that._queue_loading++;
 	// get one Queue
-	var c = this_redis;
+	var c = this._redis;
 	c.popQueue(function (err, url) {
 		that.debug('-> get an queue, err:', err);
 		if (url) { // check cache exists
