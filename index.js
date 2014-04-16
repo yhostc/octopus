@@ -1,7 +1,7 @@
 var url = require('url'),
 	util = require('util'),
 	events = require('events'),
-	redis = require('./lib/redis.js'),
+	queue = require('./lib/queue.js'),
 	request = require('request').defaults({
 		jar: true
 	}),
@@ -32,7 +32,7 @@ util.inherits(octopus, events.EventEmitter);
 octopus.prototype.initialization = function (task) {
 	// merge detault options
 	this.mergeOptions(task.options || {});
-	// start request
+	// start request after queue
 	this.on('queue', this.next);
 	// save queue
 	task.queue && this.queue(task.queue);
@@ -44,7 +44,7 @@ octopus.prototype.mergeOptions = function (opts) {
 		debug: true,
 		redis: true,
 		timeout: 60000,
-		idleTime: 1000,
+		idleTime: 500,
 		maxConnections: 10,
 		userAgent: packages.name + '/' + packages.version
 	};
@@ -55,7 +55,7 @@ octopus.prototype.mergeOptions = function (opts) {
 	}
 
 	if (options['redis']) {
-		this._redis = new redis.Storage(options['redis'], options['debug']);
+		this._redis = new queue.Storage(options['redis'], options['debug']);
 	}
 };
 
@@ -66,13 +66,8 @@ octopus.prototype.mergeOptions = function (opts) {
  * @return {[type]}
  */
 octopus.prototype.queue = function (urls) {
-	if (typeof urls === 'string') {
-		urls = [urls];
-	}
-	if (urls instanceof Array) {
-		this._redis.pushQueue(urls);
-		this.emit('queue', urls);
-	}
+	this._redis.pushQueue(urls);
+	this.emit('queue', urls);
 };
 
 /**
@@ -80,13 +75,12 @@ octopus.prototype.queue = function (urls) {
  * @return {Function} [description]
  */
 octopus.prototype.next = function () {
-	this.options.debug && console.log('-> nexting');
+	this.debug('-> nexting');
 
 	var that = this;
-	var c = this._redis;
 	// check connection batch numbers
 	if (this._queue_loading >= this.options.maxConnections) {
-		this.options.debug && console.log('-> next, rather than maxConnections, skip');
+		this.debug('-> next, rather than maxConnections, skip');
 		return;
 	}
 
@@ -103,26 +97,26 @@ octopus.prototype.next = function () {
 	// count
 	that._queue_loading++;
 	// get one Queue
-	c.popQueue(function (err, url) {
-		that.options.debug && console.log('-> get an queue, err:', err);
+	this._redis.popQueue(function (err, url) {
+		that.debug('-> get an queue, err:', err);
 		if (url) { // check cache exists
 			c.hgetCache(url, function (err2, body) {
-				that.options.debug && console.log('-> check cache for url, err:', err2);
+				that.debug('-> check cache for url, err:', err2);
 				// no cached, requesting
 				if (!body) {
-					that.options.debug && console.log('-> send an request, url:', url);
+					that.debug('-> send an request, url:', url);
 					// send an request
 					that._sending(url);
 				} else {
 					// have cache, skip
-					that.options.debug && console.log('-> have cache, skip, url:', url);
+					that.debug('-> have cache, skip, url:', url);
 
 					that._queue_loading--;
 					that.next();
 				}
 			});
 		} else {
-			that.options.debug && console.log('-> no url queue, subtract queue');
+			that.debug('-> no url queue, subtract queue');
 			that._queue_loading--;
 		}
 	});
@@ -147,22 +141,21 @@ octopus.prototype._sending = function (url) {
 		}
 	}, function (err, res, body) {
 		// error handing
-		if (!err && res && res.statusCode == 200) {
+		if (!err && res && res.statusCode && res.statusCode == 200) {
 			// debug & console
-			that.options.debug && console.log('-> requested, statusCode:', res.statusCode);
+			that.debug('-> requested, statusCode:', res.statusCode);
 
-			// cookie
-			// if (res.headers['set-cookie']) {
-			// 	// 写cookie
+			// if (res.headers && res.headers['set-cookie']) {
+			// 	// write cookie
 			// 	var k = request.jar();
 			// 	res.headers['set-cookie'].forEach(function (c, idx) {
 			// 		k.setCookie(c, url);
 			// 	});
-			// 	that._last_cookie = k;
+			// 	that._cookie = k;
 			// }
 
 			// adding cache
-			that.options.debug && console.log('-> adding cache, url:', url);
+			that.debug('-> adding cache, url:', url);
 
 			that._redis.hsetCache(url, body, function () {
 				res = null;
@@ -172,7 +165,7 @@ octopus.prototype._sending = function (url) {
 			// complete, jsdom
 			that._cheerio(url, body);
 		} else {
-			that.options.debug && console.log('-> request error, url:', url);
+			that.debug('-> request error, url:', url);
 
 			that._queue_loading--;
 			that.emit('errors', {
@@ -196,7 +189,7 @@ octopus.prototype._cheerio = function (url, body) {
 	$.url = url;
 
 	this._queue_loading--;
-	this.options.debug && console.log('-> cheerio ok, url:', url);
+	this.debug('-> cheerio ok, url:', url);
 
 	// for global callback
 	(this._task.options['callback'] || function () {})($);
@@ -211,7 +204,7 @@ octopus.prototype._cheerio = function (url, body) {
 	// end of
 	var that = this;
 	this._redis.lenQueue(function (err, len) {
-		that.options.debug && console.log('-> get len queue, errors:', err);
+		that.debug('-> get len queue, errors:', err);
 
 		err && that.emit('errors', err);
 		// for next
@@ -228,5 +221,9 @@ octopus.prototype._cheerio = function (url, body) {
 	});
 };
 
+
+octopus.prototype.debug = function () {
+	this.options.debug && console.log(arguments);
+};
 
 exports.Claw = octopus;
