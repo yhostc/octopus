@@ -166,6 +166,8 @@ octopus.prototype._sending = function (url) {
 			});
 			that.next();
 		}
+		res = null;
+		body = null;
 	})
 };
 
