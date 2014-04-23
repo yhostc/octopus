@@ -115,6 +115,7 @@ octopus.prototype.next = function () {
 		} else {
 			that.debug('-> no url queue, subtract queue');
 			that._queue_loading--;
+			that.next();
 		}
 	});
 };
@@ -137,6 +138,11 @@ octopus.prototype._sending = function (url) {
 			'Accept': 'text/html,application/xhtml+xml,application/xml;'
 		}
 	}, function (err, res, body) {
+		// adding cache
+		that.debug('-> adding cache, url:' + url);
+
+		that._redis.hsetCache(url, body || err);
+
 		// error handing
 		if (!err && res && res.statusCode == 200) {
 			// if (res.headers && res.headers['set-cookie']) {
@@ -148,14 +154,6 @@ octopus.prototype._sending = function (url) {
 			// 	that._cookie = k;
 			// }
 
-			// adding cache
-			that.debug('-> adding cache, url:' + url);
-
-			that._redis.hsetCache(url, body, function () {
-				res = null;
-				body = null;
-			});
-
 			// complete, jsdom
 			that._cheerio(url, body);
 		} else {
@@ -166,7 +164,6 @@ octopus.prototype._sending = function (url) {
 				errors: err,
 				statusCode: (res && res.statusCode ? res.statusCode : 0)
 			});
-			that.queue(url);
 			that.next();
 		}
 	})
