@@ -141,7 +141,7 @@ octopus.prototype._sending = function (url) {
 		// adding cache
 		that.debug('-> adding cache, url:' + url);
 
-		that._redis.hsetCache(url, body || err);
+		that._redis.hsetCache(url, err || 1);
 
 		// error handing
 		if (!err && res && res.statusCode == 200) {
