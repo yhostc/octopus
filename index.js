@@ -5,6 +5,7 @@ var url2 = require('url'),
 	request = require('request').defaults({
 		jar: true
 	}),
+	iconv = require('iconv-lite'),
 	cheerio = require('cheerio'),
 	packages = require('./package.json');
 
@@ -45,6 +46,7 @@ octopus.prototype.mergeOptions = function (opts) {
 		redis: true,
 		timeout: 60000,
 		idleTime: 500,
+		charset: 'utf8',
 		maxConnections: 10,
 		userAgent: packages.name + '/' + packages.version
 	};
@@ -136,7 +138,8 @@ octopus.prototype._sending = function (url) {
 			'User-Agent': this.options['userAgent'],
 			'Referer': url,
 			'Accept': 'text/html,application/xhtml+xml,application/xml;'
-		}
+		},
+		encoding: null
 	}, function (err, res, body) {
 		// adding cache
 		that.debug('-> adding cache, url:' + url);
@@ -178,6 +181,9 @@ octopus.prototype._sending = function (url) {
  * @return {[type]}
  */
 octopus.prototype._cheerio = function (url, body) {
+	// decode for encoding
+	body = iconv.decode(body, this.options['charset']);
+	// parse the html
 	var $ = cheerio.load(body);
 	$.url = url;
 
